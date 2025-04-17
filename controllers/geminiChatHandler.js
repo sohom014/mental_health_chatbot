@@ -5,8 +5,7 @@ const {
 } = require("@google/generative-ai");
 require("dotenv").config();
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
 // Updated to use a standard model name
 const model = genAI.getGenerativeModel({
@@ -20,7 +19,7 @@ const model = genAI.getGenerativeModel({
     "4. Provide evidence-based coping strategies when appropriate\n" +
     "5. Maintain a warm, supportive tone\n" +
     "6. Never claim to diagnose conditions or replace professional help\n\n" +
-    "If a user expresses thoughts of self-harm or suicide, emphasize the importance of immediate professional support and provide crisis resources.",
+    "If a user expresses thoughts of self-harm or suicide, emphasize the importance of immediate professional support and provide Indian suicide prevention helpline resources. For example, you can say: 'If you are in distress, please reach out to the Sneha India Suicide Prevention Helpline at 044-24640050 (available 24/7, confidential, and free), or iCall at 9152987821.' Do not mention any helplines outside India.",
 });
 
 const generationConfig = {
@@ -76,7 +75,10 @@ async function geminiChat(userMessage) {
   } catch (error) {
     console.error("Gemini API error:", error);
     // Return a friendly error message
-    return "I'm sorry, I'm having trouble connecting right now. This could be due to high traffic or a technical issue. Please try again in a moment.";
+    if (error.message.includes('API key')) {
+      return "I apologize, but there seems to be an issue with the API configuration. Please contact support.";
+    }
+    return "I apologize, but I'm having trouble formulating a response. Please know that your feelings are valid and important. If you're in immediate distress, please reach out to a mental health professional or crisis helpline.";
   }
 }
 

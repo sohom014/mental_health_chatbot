@@ -265,10 +265,13 @@
     background-color: var(--bg-secondary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
-    padding: 0.5rem 1rem;
-    border-radius: var(--border-radius);
+    padding: 0.5rem 1.2rem;
+    border-radius: 1.2rem;
+    font-size: 1rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
   
   .pagination-btn:hover {
@@ -421,6 +424,29 @@
   .checkbox-group input {
     width: auto;
   }
+
+  /* Modern blue admin checkbox style */
+  .admin-tick {
+  color: #2196f3;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* Center the admin checkbox in the table cell */
+#usersTableBody td:nth-child(4) {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Optional: match modal checkbox hover/focus if needed */
+.admin-checkbox-glow:focus {
+  outline: 2px solid #2196f3;
+  outline-offset: 2px;
+}
+
   
   select {
     width: 100%;

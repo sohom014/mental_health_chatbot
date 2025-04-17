@@ -175,11 +175,24 @@ router.get('/chats/:id', async (req, res) => {
 // Update chat (for flagging or sentiment updates)
 router.put('/chats/:id', async (req, res) => {
   try {
-    const { flagged, sentiment } = req.body;
-    
+    let { flag, sentiment } = req.body;
+    const allowedFlags = ['anxiety', 'depression', 'neutral', 'stress', 'suicidal', null];
+    if (flag === '') flag = null;
+    if (flag && !allowedFlags.includes(flag)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid flag value'
+      });
+    }
+    if (sentiment && !allowedFlags.includes(sentiment)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid sentiment value'
+      });
+    }
     const chat = await Chat.findByIdAndUpdate(
       req.params.id,
-      { flagged, sentiment },
+      { flag, sentiment },
       { new: true, runValidators: true }
     ).populate('user', 'username email');
     

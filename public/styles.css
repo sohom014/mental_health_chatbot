@@ -18,6 +18,13 @@
   box-sizing: border-box;
 }
 
+@import url('https://fonts.googleapis.com/css?family=Nunito:400,600,700&display=swap');
+
+body, html, input, button, select, textarea {
+  font-family: 'Nunito', Arial, sans-serif;
+  font-size: 16px;
+}
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: var(--bg-primary);

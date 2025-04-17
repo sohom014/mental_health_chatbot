@@ -27,7 +27,7 @@ const chatDetailUsername = document.getElementById('chatDetailUsername');
 const chatDetailDate = document.getElementById('chatDetailDate');
 const chatDetailUserMessage = document.getElementById('chatDetailUserMessage');
 const chatDetailBotResponse = document.getElementById('chatDetailBotResponse');
-const chatDetailFlagged = document.getElementById('chatDetailFlagged');
+const chatDetailFlag = document.getElementById('chatDetailFlag');
 const saveChatDetailsBtn = document.getElementById('saveChatDetailsBtn');
 
 // Dashboard Elements
@@ -74,8 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const chatId = currentChatId;
     if (chatId) {
-      const flagged = document.getElementById('chatDetailFlagged').checked;
-      saveChatChanges(chatId, flagged);
+      const flag = document.getElementById('chatDetailFlag').value;
+      saveChatChanges(chatId, flag);
     }
   });
   
@@ -230,7 +230,7 @@ function renderUsersTable(users) {
       <td>${user.email || 'N/A'}</td>
       <td>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</td>
       <td>
-        <input type="checkbox" ${user.isAdmin ? 'checked' : ''} disabled>
+        ${user.isAdmin ? '<i class="fa-solid fa-check admin-tick"></i>' : ''}
       </td>
       <td class="cell-actions">
         <button class="btn-icon edit" onclick="editUser('${user._id}')" title="Edit User">
@@ -243,6 +243,57 @@ function renderUsersTable(users) {
     </tr>
   `).join('');
 }
+
+// Edit user functionality
+function editUser(userId) {
+  const user = users.find(u => u._id === userId);
+  if (!user) {
+    showNotification('User not found', 'error');
+    return;
+  }
+  editUserId.value = user._id;
+  editUsername.value = user.username || '';
+  editEmail.value = user.email || '';
+  editIsAdmin.checked = !!user.isAdmin;
+  userEditModal.classList.remove('hidden');
+}
+
+userEditForm.onsubmit = async function(e) {
+  e.preventDefault();
+  const userId = editUserId.value;
+  const username = editUsername.value.trim();
+  const email = editEmail.value.trim();
+  const isAdmin = editIsAdmin.checked;
+
+  if (!userId || !username || !email) {
+    showNotification('All fields are required.', 'error');
+    return;
+  }
+
+  try {
+    showLoading('Updating user...');
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, email, isAdmin })
+    });
+    if (!response.ok) throw new Error('Failed to update user');
+    const data = await response.json();
+    if (!data.success) throw new Error(data.error);
+    showNotification('User updated successfully', 'success');
+    userEditModal.classList.add('hidden');
+    await loadUsers();
+  } catch (error) {
+    showNotification(error.message, 'error');
+  } finally {
+    hideLoading();
+  }
+};
+
 
 // Filter users
 function filterUsers() {
@@ -260,7 +311,7 @@ async function toggleAdminStatus(userId, isAdmin) {
     showLoading('Updating user status...');
     const token = localStorage.getItem('token');
     const response = await fetch(`/api/admin/users/${userId}/admin`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -313,7 +364,7 @@ async function loadChats(page = 1) {
   try {
     showLoading('Loading chats...');
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/admin/chats?page=${page}`, {
+    const response = await fetch(`/api/admin/chats?page=${page}&limit=10`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -324,10 +375,10 @@ async function loadChats(page = 1) {
     const data = await response.json();
     if (!data.success) throw new Error(data.error);
 
-    // Ensure we have the chats array and pagination data
+    // Use backend pagination metadata
     chats = Array.isArray(data.data) ? data.data : [];
-    totalPages = Math.ceil(chats.length / 10) || 1; // Assuming 10 items per page
-    currentPage = parseInt(page) || 1;
+    totalPages = data.pages || 1;
+    currentPage = data.currentPage || 1;
 
     // Create pagination container if it doesn't exist
     let paginationContainer = document.querySelector('.pagination');
@@ -340,12 +391,8 @@ async function loadChats(page = 1) {
       }
     }
 
-    // Paginate the chats array
-    const startIndex = (currentPage - 1) * 10;
-    const endIndex = startIndex + 10;
-    const paginatedChats = chats.slice(startIndex, endIndex);
-
-    renderChatsTable(paginatedChats);
+    // No need to paginate on frontend, backend sends correct page
+    renderChatsTable(chats);
     updatePagination();
     hideLoading();
   } catch (error) {
@@ -369,7 +416,7 @@ function renderChatsTable(chats) {
       <td>${chat?.createdAt ? new Date(chat.createdAt).toLocaleString() : 'N/A'}</td>
       <td class="cell-truncate">${chat?.message || 'No message'}</td>
       <td>
-        ${chat?.flagged ? '<span class="cell-flagged"><i class="fas fa-flag"></i></span>' : ''}
+        ${chat?.flag ? `<span class="cell-flagged flag-label flag-${chat.flag}">${chat.flag.charAt(0).toUpperCase() + chat.flag.slice(1)}</span>` : '<span class="cell-flagged">-</span>'}
       </td>
       <td class="cell-actions">
         <button class="btn-icon view" onclick="viewChatDetails('${chat?._id}')" title="View Details">
@@ -416,8 +463,12 @@ async function viewChatDetails(chatId) {
     document.getElementById('chatDetailUsername').textContent = chat?.user?.username || 'Anonymous';
     document.getElementById('chatDetailDate').textContent = new Date(chat.createdAt).toLocaleString();
     document.getElementById('chatDetailUserMessage').textContent = chat.message;
-    document.getElementById('chatDetailBotResponse').textContent = chat.reply;
-    document.getElementById('chatDetailFlagged').checked = chat.flagged || false;
+    document.getElementById('chatDetailBotResponse').textContent = chat.response || '';
+    document.getElementById('chatDetailSentiment').value = chat.sentiment || '';
+    // Show confidence as percent with two decimals, e.g., 80.89%
+    document.getElementById('chatDetailConfidence').value =
+      typeof chat.confidence === 'number' ? (chat.confidence * 100).toFixed(2) + '%' : '';
+    document.getElementById('chatDetailFlag').value = chat.flag == null ? '' : chat.flag;
 
     document.getElementById('chatDetailModal').classList.remove('hidden');
     hideLoading();
@@ -429,7 +480,7 @@ async function viewChatDetails(chatId) {
 }
 
 // Save chat changes
-async function saveChatChanges(chatId, flagged) {
+async function saveChatChanges(chatId, flag) {
   if (!chatId) {
     showNotification('Invalid chat ID', 'error');
     return;
@@ -440,12 +491,12 @@ async function saveChatChanges(chatId, flagged) {
     
     const token = localStorage.getItem('token');
     const response = await fetch(`/api/admin/chats/${chatId}`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ flagged })
+      body: JSON.stringify({ flag: flag === '' ? null : flag })
     });
 
     if (!response.ok) throw new Error('Failed to update chat');
@@ -497,14 +548,21 @@ function updatePagination() {
   if (!paginationContainer) return;
 
   paginationContainer.innerHTML = `
-    <button ${currentPage <= 1 ? 'disabled' : ''} onclick="loadChats(${currentPage - 1})">
+    <button class="pagination-btn" ${currentPage <= 1 ? 'disabled' : ''} onclick="changePage(${currentPage - 1})">
       Previous
     </button>
     <span class="pagination-info">Page ${currentPage} of ${totalPages}</span>
-    <button ${currentPage >= totalPages ? 'disabled' : ''} onclick="loadChats(${currentPage + 1})">
+    <button class="pagination-btn" ${currentPage >= totalPages ? 'disabled' : ''} onclick="changePage(${currentPage + 1})">
       Next
     </button>
   `;
+}
+
+function changePage(page) {
+  if (page < 1 || page > totalPages) return;
+  currentPage = page;
+  loadChats(currentPage);
+
 }
 
 // Utility functions

@@ -69,7 +69,7 @@ function updateAuthState(auth, user) {
     }
   }
 }
-// Adjust textarea height as user types
+// Adjust textarea height as user types and check word limit
 messageInput.addEventListener('input', function() {
   this.style.height = 'auto';
   this.style.height = (this.scrollHeight) + 'px';
@@ -77,6 +77,23 @@ messageInput.addEventListener('input', function() {
   // Reset to default height if empty
   if (this.value === '') {
     this.style.height = 'auto';
+  }
+
+  // Check word count
+  const wordCount = this.value.trim().split(/\s+/).length;
+  if (wordCount > 100) {
+    const words = this.value.trim().split(/\s+/).slice(0, 100).join(' ');
+    this.value = words;
+    showNotification('Message limited to 100 words', 'warning');
+  }
+});
+
+// Handle enter key press
+messageInput.addEventListener('keydown', function(e) {
+  // Check if Enter was pressed without Shift key
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault(); // Prevent default newline
+    messageForm.dispatchEvent(new Event('submit')); // Trigger form submission
   }
 });
 
@@ -346,6 +363,11 @@ async function sendMessage(e) {
   e.preventDefault();
   
   const message = messageInput.value.trim();
+  const wordCount = message.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 100) {
+    showNotification('Message cannot exceed 100 words.', 'warning');
+    return;
+  }
   
   if (!message) return;
   
@@ -380,36 +402,37 @@ async function sendMessage(e) {
   }
   
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (isAuthenticated && typeof getToken === 'function') {
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    }
     const response = await fetch('/api/chat/message', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}`
-      },
+      headers,
       body: JSON.stringify({ message })
     });
-    
-    const data = await response.json();
-    
-    // Remove loading message
-    document.getElementById(loadingMessageId).remove();
-    
-    if (data.success) {
-      // Add bot response to chat
-      addMessageToChat(
-        data.data.reply, 
-        'bot', 
-        formatTimestamp(data.data.timestamp),
-        data.data.flagged,
-        data.data.sentiment
-      );
-    } else {
-      // Add error message
-      addMessageToChat(
-        'I\'m sorry, I\'m having trouble processing your message right now. Please try again later.',
-        'bot'
-      );
+
+    // Handle 401 Unauthorized
+    if (response.status === 401) {
+      showNotification('Session expired. Please log in again.', 'error');
+      localStorage.removeItem('token');
+      updateAuthState(false, null);
+      return;
     }
+    const data = await response.json();
+
+    // Remove loading message
+    document.getElementById(loadingMessageId)?.remove();
+    
+    // Add bot response to chat
+    addMessageToChat(
+      data && data.response,
+      'bot',
+      formatTimestamp(data && data.timestamp),
+      false,
+      data && data.sentiment
+    );
     
     // Scroll to bottom
     scrollToBottom();
@@ -434,27 +457,32 @@ async function sendMessage(e) {
 function addMessageToChat(message, sender, timestamp = 'Now', flagged = false, sentiment = null) {
   const messageElement = document.createElement('div');
   messageElement.className = `message ${sender}-message`;
-  
+
   if (flagged) {
     messageElement.classList.add('urgent');
   }
-  
+
   let sentimentClass = '';
   if (sentiment === 'anxiety' || sentiment === 'depression' || sentiment === 'stress') {
     sentimentClass = sentiment;
   }
-  
+
   if (sentimentClass) {
     messageElement.classList.add(sentimentClass);
   }
-  
+
+  // Show fallback if message is undefined/null
+  const safeMessage = (typeof message === 'string' && message.trim().length > 0)
+    ? message
+    : 'Sorry, I could not process your message.';
+
   messageElement.innerHTML = `
     <div class="message-content">
-      <p>${formatMessage(message)}</p>
+      <p>${formatMessage(safeMessage)}</p>
     </div>
     <div class="message-time">${timestamp}</div>
   `;
-  
+
   chatMessages.appendChild(messageElement);
 }
 
@@ -476,6 +504,7 @@ function addLoadingMessage(id) {
 
 // Format message text (convert URLs to links, etc.)
 function formatMessage(text) {
+  if (typeof text !== 'string') return '';
   // Convert URLs to links
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
@@ -483,7 +512,7 @@ function formatMessage(text) {
 
 // Format timestamp
 function formatTimestamp(timestamp) {
-  if (!timestamp) return 'Now';
+  if (!timestamp) return '';
   
   const date = new Date(timestamp);
   const now = new Date();
@@ -493,7 +522,7 @@ function formatTimestamp(timestamp) {
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
   
-  if (diffSec < 60) return 'Just now';
+  if (diffSec < 60) return '';
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHour < 24) return `${diffHour}h ago`;
   if (diffDay < 7) return `${diffDay}d ago`;

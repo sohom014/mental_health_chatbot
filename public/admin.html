@@ -169,19 +169,25 @@
           </div>
         </div>
         <div class="chat-actions">
-          <div class="form-group checkbox-group">
-            <label for="chatDetailFlagged">
-              <input type="checkbox" id="chatDetailFlagged">
-              Flag this conversation
-            </label>
+          <div class="form-row" style="display: flex; gap: 16px; align-items: flex-end;">
+            <div class="form-group" style="flex: 1;">
+              <label for="chatDetailSentiment">Sentiment</label>
+              <input id="chatDetailSentiment" class="form-control" type="text" readonly />
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label for="chatDetailConfidence">Confidence</label>
+              <input id="chatDetailConfidence" class="form-control" type="text" readonly />
+            </div>
           </div>
-          <div class="form-group">
-            <label for="chatDetailSentiment">Sentiment</label>
-            <select id="chatDetailSentiment">
-              <option value="neutral">Neutral</option>
+          <div class="form-group checkbox-group">
+            <label for="chatDetailFlag">Flag:</label>
+            <select id="chatDetailFlag" class="form-control">
+              <option value="">None</option>
               <option value="anxiety">Anxiety</option>
               <option value="depression">Depression</option>
+              <option value="neutral">Neutral</option>
               <option value="stress">Stress</option>
+              <option value="suicidal">Suicidal</option>
             </select>
           </div>
           <button id="saveChatDetailsBtn" class="btn primary-btn">Save Changes</button>
